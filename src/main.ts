@@ -43,9 +43,19 @@ if (!process.env.VERCEL) {
 // Vercel Serverless Function handler
 let isInitialized = false;
 export default async function handler(req: any, res: any) {
-  if (!isInitialized) {
-    await createNestApp(server);
-    isInitialized = true;
+  try {
+    if (!isInitialized) {
+      await createNestApp(server);
+      isInitialized = true;
+    }
+    server(req, res);
+  } catch (error: any) {
+    console.error('Vercel serverless bootstrap error:', error);
+    res.status(500).json({
+      statusCode: 500,
+      message: 'Serverless initialization error',
+      error: error?.message || String(error),
+      detail: 'Check Vercel project Environment Variables (e.g. DATABASE_URL, JWT_SECRET)',
+    });
   }
-  server(req, res);
 }
