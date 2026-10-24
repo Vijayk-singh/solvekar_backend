@@ -1,12 +1,16 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { ExpressAdapter } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import express, { Express } from 'express';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+const server: Express = express();
+
+export const createNestApp = async (expressInstance: Express) => {
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(expressInstance), { bufferLogs: true });
   app.useLogger(app.get(Logger));
   const config = app.get(ConfigService);
   const prefix = config.get<string>('API_PREFIX', 'api/v1');
@@ -23,8 +27,25 @@ async function bootstrap() {
     .build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, documentConfig));
 
-  const port = config.get<number>('PORT', 3000);
-  await app.listen(port);
+  await app.init();
+  return app;
+};
+
+// Local development / standalone server
+if (!process.env.VERCEL) {
+  createNestApp(server).then(async (app) => {
+    const config = app.get(ConfigService);
+    const port = config.get<number>('PORT', 3000);
+    await app.listen(port);
+  });
 }
 
-void bootstrap();
+// Vercel Serverless Function handler
+let isInitialized = false;
+export default async function handler(req: any, res: any) {
+  if (!isInitialized) {
+    await createNestApp(server);
+    isInitialized = true;
+  }
+  server(req, res);
+}
