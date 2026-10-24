@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  student
+  teacher
+  admin
+}
+
+enum UserStatus {
+  active
+  suspended
+}
+
+enum ContentStatus {
+  draft
+  published
+  archived
+}
+
+enum QuestionType {
+  single_choice
+  multiple_choice
+  numerical
+}
+
+enum SubscriptionStatus {
+  active
+  cancelled
+  expired
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  fullName     String     @db.VarChar(100)
+  email        String?    @unique @db.VarChar(254)
+  phone        String?    @unique @db.VarChar(20)
+  googleId     String?    @unique @map("google_id") @db.VarChar(255)
+  passwordHash String?    @map("password_hash") @db.VarChar(255)
+  role         UserRole
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  deletedAt    DateTime?  @map("deleted_at")
+
+  createdPlans     Plan[]         @relation("PlanCreator")
+  createdTests     Test[]         @relation("TestCreator")
+  createdQuestions Question[]     @relation("QuestionCreator")
+  subscriptions    Subscription[]
+  auditLogs        AuditLog[]     @relation("AuditActor")
+
+  @@index([role, status])
+  @@map("users")
+}
+
+model Plan {
+  id          String        @id @default(uuid()) @db.Uuid
+  title       String        @db.VarChar(160)
+  description String?
+  price       Decimal       @default(0) @db.Decimal(10, 2)
+  currency    String        @default("INR") @db.VarChar(3)
+  isFree      Boolean       @default(false) @map("is_free")
+  status      ContentStatus @default(draft)
+  createdById String        @map("created_by_id") @db.Uuid
+  createdBy   User          @relation("PlanCreator", fields: [createdById], references: [id])
+  planTests   PlanTest[]
+  subscriptions Subscription[]
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([createdById])
+  @@map("plans")
+}
+
+model Test {
+  id              String        @id @default(uuid()) @db.Uuid
+  title           String        @db.VarChar(160)
+  description     String?
+  durationMinutes Int           @map("duration_minutes")
+  status          ContentStatus @default(draft)
+  createdById     String        @map("created_by_id") @db.Uuid
+  createdBy       User          @relation("TestCreator", fields: [createdById], references: [id])
+  sections        TestSection[]
+  planTests       PlanTest[]
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([createdById])
+  @@map("tests")
+}
+
+model TestSection {
+  id        String         @id @default(uuid()) @db.Uuid
+  testId    String         @map("test_id") @db.Uuid
+  test      Test           @relation(fields: [testId], references: [id], onDelete: Cascade)
+  title     String         @db.VarChar(160)
+  sortOrder Int            @map("sort_order")
+  questions TestQuestion[]
+
+  @@unique([testId, sortOrder])
+  @@map("test_sections")
+}
+
+model Question {
+  id            String       @id @default(uuid()) @db.Uuid
+  type          QuestionType
+  stem          String
+  options       Json?
+  correctAnswer Json          @map("correct_answer")
+  explanation   String?
+  subject       String?      @db.VarChar(120)
+  topic         String?      @db.VarChar(120)
+  status        ContentStatus @default(draft)
+  createdById   String       @map("created_by_id") @db.Uuid
+  createdBy     User         @relation("QuestionCreator", fields: [createdById], references: [id])
+  testQuestions TestQuestion[]
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  @@index([createdById])
+  @@index([subject, topic])
+  @@map("questions")
+}
+
+model TestQuestion {
+  id            String      @id @default(uuid()) @db.Uuid
+  sectionId     String      @map("section_id") @db.Uuid
+  section       TestSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  questionId    String      @map("question_id") @db.Uuid
+  question      Question    @relation(fields: [questionId], references: [id])
+  sortOrder     Int         @map("sort_order")
+  marks         Decimal     @default(1) @db.Decimal(6, 2)
+  negativeMarks Decimal     @default(0) @map("negative_marks") @db.Decimal(6, 2)
+
+  @@unique([sectionId, questionId])
+  @@unique([sectionId, sortOrder])
+  @@map("test_questions")
+}
+
+model PlanTest {
+  planId    String @map("plan_id") @db.Uuid
+  plan      Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  testId    String @map("test_id") @db.Uuid
+  test      Test   @relation(fields: [testId], references: [id], onDelete: Cascade)
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@id([planId, testId])
+  @@unique([planId, sortOrder])
+  @@map("plan_tests")
+}
+
+model Subscription {
+  id          String             @id @default(uuid()) @db.Uuid
+  userId      String             @map("user_id") @db.Uuid
+  user        User               @relation(fields: [userId], references: [id])
+  planId      String             @map("plan_id") @db.Uuid
+  plan        Plan               @relation(fields: [planId], references: [id])
+  status      SubscriptionStatus @default(active)
+  source      String             @default("demo") @db.VarChar(30)
+  activatedAt DateTime           @default(now()) @map("activated_at")
+  expiresAt   DateTime?          @map("expires_at")
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  @@unique([userId, planId])
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
+model AuditLog {
+  id         String    @id @default(uuid()) @db.Uuid
+  actorId    String?   @map("actor_id") @db.Uuid
+  actor      User?     @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action     String    @db.VarChar(100)
+  targetType String    @map("target_type") @db.VarChar(80)
+  targetId   String?   @map("target_id") @db.Uuid
+  metadata   Json?
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}
+
+model OtpVerification {
+  id        String   @id @default(uuid()) @db.Uuid
+  target    String   @db.VarChar(254)
+  type      String   @db.VarChar(20)
+  codeHash  String   @map("code_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([target, type])
+  @@map("otp_verifications")
+}

@@ -1,0 +1,9 @@
+import { Injectable, NotFoundException } from '@nestjs/common'; import { ContentStatus, Prisma } from '@prisma/client'; import { AuditService } from '../audit/audit.service'; import { PrismaService } from '../prisma/prisma.service'; import { CreateQuestionDto, UpdateQuestionDto } from './dto/question.dto';
+@Injectable() export class QuestionsService {
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
+  async create(input: CreateQuestionDto) { const question = await this.prisma.question.create({ data: { ...input, options: input.options as Prisma.InputJsonValue | undefined, correctAnswer: input.correctAnswer as Prisma.InputJsonValue } }); await this.audit.log({ actorId: input.createdById, action: 'question.created', targetType: 'question', targetId: question.id }); return question; }
+  list(publishedOnly = false) { return this.prisma.question.findMany({ where: publishedOnly ? { status: ContentStatus.published } : {}, orderBy: { createdAt: 'desc' } }); }
+  async get(id: string) { const item = await this.prisma.question.findUnique({ where: { id } }); if (!item) throw new NotFoundException('Question not found'); return item; }
+  async update(id: string, input: UpdateQuestionDto) { const { options, correctAnswer, ...fields } = input; await this.get(id); const question = await this.prisma.question.update({ where: { id }, data: { ...fields, ...(options !== undefined ? { options: options as Prisma.InputJsonValue } : {}), ...(correctAnswer !== undefined ? { correctAnswer: correctAnswer as Prisma.InputJsonValue } : {}) } }); await this.audit.log({ action: 'question.updated', targetType: 'question', targetId: id }); return question; }
+  async remove(id: string) { await this.get(id); await this.prisma.question.delete({ where: { id } }); await this.audit.log({ action: 'question.deleted', targetType: 'question', targetId: id }); }
+}

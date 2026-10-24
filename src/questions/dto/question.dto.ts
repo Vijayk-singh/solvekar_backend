@@ -1,0 +1,5 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ContentStatus, QuestionType } from '@prisma/client';
+import { IsArray, IsDefined, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+export class CreateQuestionDto { @IsUUID() createdById!: string; @IsEnum(QuestionType) type!: QuestionType; @IsString() stem!: string; @IsOptional() @IsArray() options?: unknown[]; @IsDefined() correctAnswer!: unknown; @IsOptional() @IsString() explanation?: string; @IsOptional() @IsString() @MaxLength(120) subject?: string; @IsOptional() @IsString() @MaxLength(120) topic?: string; }
+export class UpdateQuestionDto { @ApiPropertyOptional({ enum: QuestionType }) @IsOptional() @IsEnum(QuestionType) type?: QuestionType; @IsOptional() @IsString() stem?: string; @IsOptional() @IsArray() options?: unknown[]; @IsOptional() correctAnswer?: unknown; @IsOptional() @IsString() explanation?: string; @IsOptional() @IsString() subject?: string; @IsOptional() @IsString() topic?: string; @ApiPropertyOptional({ enum: ContentStatus }) @IsOptional() @IsEnum(ContentStatus) status?: ContentStatus; }
