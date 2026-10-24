@@ -32,7 +32,7 @@ import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
     LoggerModule.forRoot({
       pinoHttp: {
         transport:
-          process.env.NODE_ENV !== 'production'
+          process.env.NODE_ENV !== 'production' && !process.env.VERCEL
             ? {
                 target: 'pino-pretty',
                 options: {

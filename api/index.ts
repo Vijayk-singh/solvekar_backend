@@ -35,6 +35,16 @@ async function bootstrap() {
 }
 
 export default async function handler(req: Request, res: Response) {
-  await bootstrap();
-  server(req, res);
+  try {
+    await bootstrap();
+    server(req, res);
+  } catch (error: any) {
+    console.error('Vercel bootstrap error:', error);
+    res.status(500).json({
+      statusCode: 500,
+      message: 'Serverless initialization failed',
+      error: error?.message || String(error),
+      detail: 'Ensure environment variables (DATABASE_URL, JWT_SECRET) are configured in Vercel project settings.',
+    });
+  }
 }
