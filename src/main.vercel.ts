@@ -3,15 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import express, { Express, Request, Response } from 'express';
+import express, { Express } from 'express';
 import { Logger } from 'nestjs-pino';
-import { AppModule } from '../src/app.module';
+import { AppModule } from './app.module';
 
-const server: Express = express();
-let isInitialized = false;
+let cachedServer: Express;
 
 async function bootstrap() {
-  if (!isInitialized) {
+  if (!cachedServer) {
+    const server: Express = express();
     const app = await NestFactory.create(AppModule, new ExpressAdapter(server), { bufferLogs: true });
     app.useLogger(app.get(Logger));
     const config = app.get(ConfigService);
@@ -30,21 +30,12 @@ async function bootstrap() {
     SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, documentConfig));
 
     await app.init();
-    isInitialized = true;
+    cachedServer = server;
   }
+  return cachedServer;
 }
 
-export default async function handler(req: Request, res: Response) {
-  try {
-    await bootstrap();
-    server(req, res);
-  } catch (error: any) {
-    console.error('Vercel bootstrap error:', error);
-    res.status(500).json({
-      statusCode: 500,
-      message: 'Serverless initialization failed',
-      error: error?.message || String(error),
-      detail: 'Ensure environment variables (DATABASE_URL, JWT_SECRET) are configured in Vercel project settings.',
-    });
-  }
+export default async function handler(req: any, res: any) {
+  const server = await bootstrap();
+  return server(req, res);
 }
