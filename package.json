@@ -4,6 +4,7 @@
   "private": true,
   "description": "Solvekar test-series platform API",
   "scripts": {
+    "postinstall": "prisma generate",
     "build": "prisma generate && nest build",
     "start": "node dist/main",
     "start:dev": "nest start --watch",
